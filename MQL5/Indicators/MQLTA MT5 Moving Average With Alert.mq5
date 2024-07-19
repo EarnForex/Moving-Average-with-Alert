@@ -1,6 +1,6 @@
 #property link          "https://www.earnforex.com/metatrader-indicators/moving-average-alert/"
-#property version       "1.03"
-#property copyright     "EarnForex.com - 2019-20213"
+#property version       "1.04"
+#property copyright     "EarnForex.com - 2019-2024"
 #property description   "A classic moving average with alerts."
 #property description   " "
 #property description   "WARNING: Use this software at your own risk."
@@ -50,6 +50,7 @@ input int MAShift = 0;                              // Moving Average Shift
 input ENUM_MA_METHOD_EXTENDED MAMethod = EXT_MODE_SMA; // Moving Average Method
 input ENUM_APPLIED_PRICE MAAppliedPrice = PRICE_CLOSE; // Moving Average Applied Price
 input ENUM_CANDLE_TO_CHECK CandleToCheck = CURRENT_CANDLE; // Candle To Use For Analysis
+input bool IgnoreSameCandleCrosses = false;         // Ignore Same Candle Crosses
 input int BarsToScan = 500;                         // Number Of Candles To Analyse
 input string Comment_3 = "======================="; // Notification Options
 input bool EnableNotify = false;                    // Enable Notifications Feature
@@ -60,6 +61,8 @@ input string Comment_4 = "======================="; // Drawing Options
 input bool EnableDrawArrows = true;                 // Draw Signal Arrows
 input int ArrowBuy = 241;                           // Buy Arrow Code
 input int ArrowSell = 242;                          // Sell Arrow Code
+input color ArrowBuyColor = clrGreen;               // Buy Arrow Color
+input color ArrowSellColor = clrRed;                // Sell Arrow Color
 input int ArrowSize = 3;                            // Arrow Size (1-5)
 
 double BufferMA[];
@@ -99,6 +102,11 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
 {
+    if (Bars(Symbol(), PERIOD_CURRENT) < MAPeriod + MAShift)
+    {
+        Print("Not enough historical candles.");
+        return 0;
+    }
     bool IsNewCandle = CheckIfNewCandle();
     
     int counted_bars = 0;
@@ -176,11 +184,6 @@ bool OnInitPreChecksPass()
         Print("MA Period should be a positive number.");
         return false;
     }
-    if (Bars(Symbol(), PERIOD_CURRENT) < MAPeriod + MAShift)
-    {
-        Print("Not enough historical candles.");
-        return false;
-    }
     return true;
 }
 
@@ -223,15 +226,22 @@ bool CheckIfNewCandle()
     }
 }
 
-// Check if it is a trade Signla 0 - Neutral, 1 - Buy, -1 - Sell.
+// Check if it is a trade Signal 0 = Neutral, 1 = Buy, -1 = Sell.
 ENUM_TRADE_SIGNAL IsSignal(int i)
 {
     int j = i + Shift;
     MALevel = BufferMA[j];
-    if ((iOpen(Symbol(), Period(), j) < BufferMA[j]) && (iClose(Symbol(), Period(), j) > BufferMA[j])) return SIGNAL_BUY;
-    if ((iOpen(Symbol(), Period(), j) > BufferMA[j]) && (iClose(Symbol(), Period(), j) < BufferMA[j])) return SIGNAL_SELL;
+    
+    // Classic close-only cross.
     if ((iClose(Symbol(), Period(), j + 1) < BufferMA[j + 1]) && (iClose(Symbol(), Period(), j) > BufferMA[j])) return SIGNAL_BUY;
     if ((iClose(Symbol(), Period(), j + 1) > BufferMA[j + 1]) && (iClose(Symbol(), Period(), j) < BufferMA[j])) return SIGNAL_SELL;
+
+    // If the trader prefers to ignore signals when it's just the current candle that opened below/above the EMA and closed above/below it, while the previous candle closed on the same side as the current one.
+    if (IgnoreSameCandleCrosses) return SIGNAL_NEUTRAL;
+
+    // Current candle only cross (open/close).
+    if ((iOpen(Symbol(), Period(), j) < BufferMA[j]) && (iClose(Symbol(), Period(), j) > BufferMA[j])) return SIGNAL_BUY;
+    if ((iOpen(Symbol(), Period(), j) > BufferMA[j]) && (iClose(Symbol(), Period(), j) < BufferMA[j])) return SIGNAL_SELL;
 
     return SIGNAL_NEUTRAL;
 }
@@ -287,7 +297,7 @@ void RemoveArrows()
 
 void DrawArrow(int i)
 {
-    RemoveArrowCurr();
+    RemoveArrow(i);
     ENUM_TRADE_SIGNAL Signal = IsSignal(i);
     if (Signal == SIGNAL_NEUTRAL) return;
     datetime ArrowDate = iTime(Symbol(), 0, i);
@@ -301,7 +311,7 @@ void DrawArrow(int i)
     {
         ArrowPrice = iLow(Symbol(), Period(), i);
         ArrowType = (ENUM_OBJECT)ArrowBuy;
-        ArrowColor = clrGreen;
+        ArrowColor = ArrowBuyColor;
         ArrowAnchor = ANCHOR_TOP;
         ArrowDesc = "BUY";
     }
@@ -309,7 +319,7 @@ void DrawArrow(int i)
     {
         ArrowPrice = iHigh(Symbol(), Period(), i);
         ArrowType = (ENUM_OBJECT)ArrowSell;
-        ArrowColor = clrRed;
+        ArrowColor = ArrowSellColor;
         ArrowAnchor = ANCHOR_BOTTOM;
         ArrowDesc = "SELL";
     }
@@ -324,9 +334,9 @@ void DrawArrow(int i)
     ObjectSetInteger(0, ArrowName, OBJPROP_BGCOLOR, ArrowColor);
     ObjectSetString(0, ArrowName, OBJPROP_TEXT, ArrowDesc);
 }
-void RemoveArrowCurr()
+void RemoveArrow(int i)
 {
-    datetime ArrowDate = iTime(Symbol(), 0, Shift);
+    datetime ArrowDate = iTime(Symbol(), 0, i);
     string ArrowName = IndicatorName + "-ARWS-" + IntegerToString(ArrowDate);
     ObjectDelete(0, ArrowName);
 }
