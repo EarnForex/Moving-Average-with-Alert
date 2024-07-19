@@ -1,5 +1,5 @@
 #property link          "https://www.earnforex.com/metatrader-indicators/moving-average-alert/"
-#property version       "1.04"
+#property version       "1.041"
 #property strict
 #property copyright     "EarnForex.com - 2019-2024"
 #property description   "A classic moving average with alerts."
@@ -110,7 +110,7 @@ int OnCalculate(const int rates_total,
     if (counted_bars > 0) counted_bars--;
     int limit = rates_total - counted_bars;
 
-    if (limit > BarsToScan)
+    if ((limit > BarsToScan) && (BarsToScan > 0))
     {
         limit = BarsToScan;
         if (rates_total < BarsToScan + MAPeriod + MAShift) limit = BarsToScan - 2 - MAPeriod - MAShift;
@@ -199,15 +199,15 @@ ENUM_TRADE_SIGNAL IsSignal(int i)
     MALevel = BufferMA[j];
 
     // Classic close-only cross.
-    if ((Open[j] < BufferMA[j]) && (Close[j] > BufferMA[j])) return SIGNAL_BUY;
-    if ((Open[j] > BufferMA[j]) && (Close[j] < BufferMA[j])) return SIGNAL_SELL;
+    if ((Close[j + 1] < BufferMA[j + 1]) && (Close[j] > BufferMA[j])) return SIGNAL_BUY;
+    if ((Close[j + 1] > BufferMA[j + 1]) && (Close[j] < BufferMA[j])) return SIGNAL_SELL;
 
     // If the trader prefers to ignore signals when it's just the current candle that opened below/above the EMA and closed above/below it, while the previous candle closed on the same side as the current one.
     if (IgnoreSameCandleCrosses) return SIGNAL_NEUTRAL;
 
     // Current candle only cross (open/close).
-    if ((Close[j + 1] < BufferMA[j + 1]) && (Close[j] > BufferMA[j])) return SIGNAL_BUY;
-    if ((Close[j + 1] > BufferMA[j + 1]) && (Close[j] < BufferMA[j])) return SIGNAL_SELL;
+    if ((Open[j] < BufferMA[j]) && (Close[j] > BufferMA[j])) return SIGNAL_BUY;
+    if ((Open[j] > BufferMA[j]) && (Close[j] < BufferMA[j])) return SIGNAL_SELL;
 
     return SIGNAL_NEUTRAL;
 }
